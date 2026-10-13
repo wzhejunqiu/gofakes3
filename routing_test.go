@@ -25,7 +25,6 @@ func TestRoutingSlashes(t *testing.T) {
 	ts.backendCreateBucket("test")
 	ts.backendPutString("test", "obj", nil, "yep")
 
-
 	assertStatus(ts, t, "nope", 404, "missing bucket") // sanity check missing URL
 	assertStatus(ts, t, "test", 200, "only bucket without slash")
 	assertStatus(ts, t, "test/", 200, "only bucket with slash")
@@ -76,12 +75,12 @@ func TestRoutingMoreSlashes(t *testing.T) {
 
 	// reset and reverse testData
 	for i, j := 0, len(testData)-1; i < j; i, j = i+1, j-1 {
-		testData[i], testData[j] = testData[j], testData[i];
+		testData[i], testData[j] = testData[j], testData[i]
 		testData[i][2] = "0"
 		testData[j][2] = "0"
 	}
-	if len(testData) % 2 != 0 {
-		testData[((len(testData)-1) / 2)][2] = "0"
+	if len(testData)%2 != 0 {
+		testData[((len(testData) - 1) / 2)][2] = "0"
 	}
 
 	// re-run test in reverse order

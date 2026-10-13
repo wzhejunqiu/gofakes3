@@ -146,6 +146,7 @@ func (db *SingleBucketBackend) getBucketWithFilePrefixLocked(bucket string, pref
 				LastModified: gofakes3.NewContentTime(mtime),
 				ETag:         gofakes3.FormatETag(meta.Hash),
 				Size:         size,
+				StorageClass: gofakes3.StorageClassFromMetadata(meta.Meta),
 			})
 		}
 	}
@@ -178,6 +179,7 @@ func (db *SingleBucketBackend) getBucketWithArbitraryPrefixLocked(bucket string,
 			LastModified: gofakes3.NewContentTime(mtime),
 			ETag:         gofakes3.FormatETag(meta.Hash),
 			Size:         size,
+			StorageClass: gofakes3.StorageClassFromMetadata(meta.Meta),
 		})
 
 		return nil
@@ -426,6 +428,31 @@ func (db *SingleBucketBackend) DeleteMulti(bucketName string, objects ...string)
 	}
 
 	return result, nil
+}
+
+func (db *SingleBucketBackend) PutObjectMetadata(bucketName, objectName string, meta map[string]string) error {
+	if bucketName != db.name {
+		return gofakes3.BucketNotFound(bucketName)
+	}
+
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	stat, err := db.fs.Stat(filepath.FromSlash(objectName))
+	if os.IsNotExist(err) {
+		return gofakes3.KeyNotFound(objectName)
+	} else if err != nil {
+		return err
+	} else if stat.IsDir() {
+		return gofakes3.KeyNotFound(objectName)
+	}
+
+	storedMeta, err := db.ensureMeta(bucketName, objectName, stat.Size(), stat.ModTime())
+	if err != nil {
+		return err
+	}
+	storedMeta.Meta = meta
+	return db.metaStore.saveMeta(db.metaStore.metaPath(bucketName, objectName), storedMeta)
 }
 
 func (db *SingleBucketBackend) CopyObject(srcBucket, srcKey, dstBucket, dstKey string, meta map[string]string) (result gofakes3.CopyObjectResult, err error) {

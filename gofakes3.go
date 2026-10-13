@@ -36,6 +36,9 @@ type GoFakeS3 struct {
 	hostBucket              bool                              // WithHostBucket
 	hostBucketBases         []string                          // WithHostBucketBase
 	autoBucket              bool                              // WithAutoBucket
+	restoreDelay            time.Duration                     // WithRestoreDelay
+	restoreMaxDays          int                               // WithRestoreMaxDays
+	restoreRenewal          RestoreRenewalMode                // WithRestoreRenewal
 	uploader                MultipartBackend
 	log                     Logger
 }
@@ -49,6 +52,9 @@ func New(backend Backend, options ...Option) *GoFakeS3 {
 		timeSkew:          DefaultSkewLimit,
 		metadataSizeLimit: DefaultMetadataSizeLimit,
 		integrityCheck:    true,
+		restoreDelay:      DefaultRestoreDelay,
+		restoreMaxDays:    RestoreDaysMax,
+		restoreRenewal:    RestoreRenewalExtend,
 		requestID:         0,
 		wrapCORS:          wrapCORS,
 	}
@@ -489,6 +495,10 @@ func (g *GoFakeS3) getObject(
 		}
 	}(obj.Contents)
 
+	if !glacierReadable(g.timeSource.Now(), obj.Metadata) {
+		return ErrInvalidObjectState
+	}
+
 	if err := g.writeGetOrHeadObjectResponse(obj, w, r); err != nil {
 		return err
 	}
@@ -528,7 +538,17 @@ func (g *GoFakeS3) writeGetOrHeadObjectResponse(obj *Object, w http.ResponseWrit
 	}
 
 	for mk, mv := range obj.Metadata {
+		if isInternalMetaKey(mk) {
+			continue
+		}
 		w.Header().Set(mk, mv)
+	}
+
+	sc := StorageClassFromMetadata(obj.Metadata)
+	w.Header().Set(metaStorageClass, string(sc))
+
+	if restoreHdr := formatAmzRestoreHeader(restoreStatus(g.timeSource.Now(), obj.Metadata)); restoreHdr != "" {
+		w.Header().Set("x-amz-restore", restoreHdr)
 	}
 
 	if obj.VersionID != "" {
@@ -650,6 +670,9 @@ func (g *GoFakeS3) createObjectBrowserUpload(bucket string, w http.ResponseWrite
 	if err != nil {
 		return err
 	}
+	if err := ensureStorageClass(meta); err != nil {
+		return err
+	}
 
 	if len(key) > KeySizeLimit {
 		return ResourceError(ErrKeyTooLong, key)
@@ -688,6 +711,10 @@ func (g *GoFakeS3) createObject(bucket, object string, w http.ResponseWriter, r 
 
 	if _, ok := meta["X-Amz-Copy-Source"]; ok {
 		return g.copyObject(bucket, object, meta, w, r)
+	}
+
+	if err := ensureStorageClass(meta); err != nil {
+		return err
 	}
 
 	// Parse conditional headers for PutObject
@@ -799,16 +826,42 @@ func (g *GoFakeS3) copyObject(bucket, object string, meta map[string]string, w h
 	if err != nil {
 		return err
 	}
+	defer srcObj.Contents.Close()
 
 	// XXX No support for delete marker
 	// "If the current version of the object is a delete marker, Amazon S3
 	// behaves as if the object was deleted."
 
-	// merge metadata, ACL is not preserved
-	for k, v := range srcObj.Metadata {
-		if _, found := meta[k]; !found && k != "X-Amz-Acl" {
-			meta[k] = v
+	if !archiveReadable(g.timeSource.Now(), srcObj.Metadata) {
+		return ErrInvalidObjectState
+	}
+
+	reqHasStorageClass := false
+	if sc, ok := meta[metaStorageClass]; ok && sc != "" {
+		reqHasStorageClass = true
+		if !isValidStorageClass(StorageClass(sc)) {
+			return ErrInvalidStorageClass
 		}
+	}
+
+	// Merge metadata. ACL is not preserved. Internal restore keys are never
+	// copied. Source StorageClass is only copied when the request explicitly
+	// sets x-amz-storage-class; otherwise ensureStorageClass defaults to STANDARD
+	// (AWS CopyObject behaviour).
+	for k, v := range srcObj.Metadata {
+		if _, found := meta[k]; found {
+			continue
+		}
+		if k == "X-Amz-Acl" || isInternalMetaKey(k) {
+			continue
+		}
+		if k == metaStorageClass && !reqHasStorageClass {
+			continue
+		}
+		meta[k] = v
+	}
+	if err := ensureStorageClass(meta); err != nil {
+		return err
 	}
 
 	result, err := g.storage.CopyObject(srcBucket, srcKey, bucket, object, meta)
@@ -824,6 +877,112 @@ func (g *GoFakeS3) copyObject(bucket, object string, meta map[string]string, w h
 	}
 
 	return g.xmlEncoder(w).Encode(result)
+}
+
+// restoreObject implements RestoreObject for GLACIER / DEEP_ARCHIVE objects.
+// See https://docs.aws.amazon.com/AmazonS3/latest/API/API_RestoreObject.html
+func (g *GoFakeS3) restoreObject(bucket, object string, versionID VersionID, w http.ResponseWriter, r *http.Request) error {
+	g.log.Print(LogInfo, "RESTORE OBJECT:", bucket, object, "version:", versionID)
+
+	if err := g.ensureBucketExists(bucket); err != nil {
+		return err
+	}
+
+	var req RestoreRequest
+	decoder := xml.NewDecoder(r.Body)
+	if err := decoder.Decode(&req); err != nil {
+		return ErrMalformedXML
+	}
+	if err := validateRestoreDays(req.Days, g.restoreMaxDays); err != nil {
+		return err
+	}
+
+	tier := ""
+	if req.GlacierJobParameters != nil {
+		tier = req.GlacierJobParameters.Tier
+	}
+
+	var obj *Object
+	var err error
+	if versionID == "" {
+		obj, err = g.storage.HeadObject(bucket, object)
+	} else {
+		if g.versioned == nil {
+			return ErrNotImplemented
+		}
+		obj, err = g.versioned.HeadObjectVersion(bucket, object, versionID)
+	}
+	if err != nil {
+		return err
+	}
+	if obj == nil {
+		return ErrInternal
+	}
+	defer obj.Contents.Close()
+
+	if obj.IsDeleteMarker {
+		return KeyNotFound(object)
+	}
+
+	sc := StorageClassFromMetadata(obj.Metadata)
+	if !isArchivedStorageClass(sc) {
+		return ErrInvalidObjectState
+	}
+	if sc == StorageDeepArchive && tier == RestoreTierExpedited {
+		return ErrorInvalidArgument(
+			"Tier",
+			tier,
+			"Expedited retrievals are not available for DEEP_ARCHIVE storage class",
+		)
+	}
+
+	delay, err := restoreTierDelay(g.restoreDelay, tier)
+	if err != nil {
+		return err
+	}
+
+	now := g.timeSource.Now()
+	st := restoreStatus(now, obj.Metadata)
+
+	meta := make(map[string]string, len(obj.Metadata)+2)
+	for k, v := range obj.Metadata {
+		meta[k] = v
+	}
+
+	switch st.phase {
+	case restoreOngoing:
+		return ErrRestoreAlreadyInProgress
+
+	case restoreAvailable:
+		newExpiry := renewRestoreExpiry(g.restoreRenewal, now, st.expiry, req.Days)
+		setRestoreMetadata(meta, st.availableAt, newExpiry)
+		if err := g.putRestoreMetadata(bucket, object, versionID, meta); err != nil {
+			return err
+		}
+		w.WriteHeader(http.StatusOK)
+		return nil
+
+	default:
+		// First restore or after expiry: start a new async restore.
+		availableAt := now.Add(delay)
+		expiry := availableAt.Add(time.Duration(req.Days) * 24 * time.Hour)
+		setRestoreMetadata(meta, availableAt, expiry)
+		if err := g.putRestoreMetadata(bucket, object, versionID, meta); err != nil {
+			return err
+		}
+		w.WriteHeader(http.StatusAccepted)
+		return nil
+	}
+}
+
+func (g *GoFakeS3) putRestoreMetadata(bucket, object string, versionID VersionID, meta map[string]string) error {
+	if versionID == "" {
+		return g.storage.PutObjectMetadata(bucket, object, meta)
+	}
+	if g.versioned == nil {
+		return ErrNotImplemented
+	}
+	return g.versioned.PutObjectVersionMetadata(bucket, object, versionID, meta)
 }
 
 func (g *GoFakeS3) deleteObject(bucket, object string, w http.ResponseWriter, r *http.Request) error {
@@ -927,6 +1086,9 @@ func (g *GoFakeS3) initiateMultipartUpload(bucket, object string, w http.Respons
 
 	meta, err := metadataHeaders(r.Header, g.timeSource.Now(), g.metadataSizeLimit)
 	if err != nil {
+		return err
+	}
+	if err := ensureStorageClass(meta); err != nil {
 		return err
 	}
 	if err := g.ensureBucketExists(bucket); err != nil {

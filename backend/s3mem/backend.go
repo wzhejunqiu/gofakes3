@@ -121,6 +121,7 @@ func (db *Backend) ListBucket(name string, prefix *gofakes3.Prefix, page gofakes
 				LastModified: gofakes3.NewContentTime(item.data.lastModified),
 				ETag:         gofakes3.FormatETag(item.data.hash),
 				Size:         int64(len(item.data.body)),
+				StorageClass: gofakes3.StorageClassFromMetadata(item.data.metadata),
 			})
 		}
 
@@ -289,6 +290,49 @@ func (db *Backend) PutObject(
 	}
 
 	return result, nil
+}
+
+func (db *Backend) PutObjectMetadata(bucketName, objectName string, meta map[string]string) error {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	bucket := db.buckets[bucketName]
+	if bucket == nil {
+		return gofakes3.BucketNotFound(bucketName)
+	}
+
+	obj := bucket.object(objectName)
+	if obj == nil || obj.data == nil || obj.data.deleteMarker {
+		return gofakes3.KeyNotFound(objectName)
+	}
+
+	obj.data.metadata = meta
+	return nil
+}
+
+func (db *Backend) PutObjectVersionMetadata(bucketName, objectName string, versionID gofakes3.VersionID, meta map[string]string) error {
+	if versionID == "" {
+		return db.PutObjectMetadata(bucketName, objectName, meta)
+	}
+
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	bucket := db.buckets[bucketName]
+	if bucket == nil {
+		return gofakes3.BucketNotFound(bucketName)
+	}
+
+	ver, err := bucket.objectVersion(objectName, versionID)
+	if err != nil {
+		return err
+	}
+	if ver.deleteMarker {
+		return gofakes3.KeyNotFound(objectName)
+	}
+
+	ver.metadata = meta
+	return nil
 }
 
 func (db *Backend) CopyObject(srcBucket, srcKey, dstBucket, dstKey string, meta map[string]string) (result gofakes3.CopyObjectResult, err error) {
@@ -558,6 +602,7 @@ func (db *Backend) ListBucketVersions(
 					LastModified: gofakes3.NewContentTime(version.lastModified),
 					Size:         int64(len(version.body)),
 					ETag:         gofakes3.FormatETag(version.hash),
+					StorageClass: gofakes3.StorageClassFromMetadata(version.metadata),
 				}
 				if bucket.versioning != gofakes3.VersioningNone { // S300005
 					resultVer.VersionID = version.versionID

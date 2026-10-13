@@ -303,6 +303,15 @@ type Backend interface {
 	// or ErrConditionalRequestConflict as appropriate.
 	PutObject(bucketName, key string, meta map[string]string, input io.Reader, size int64, conditions *PutConditions) (PutObjectResult, error)
 
+	// PutObjectMetadata replaces metadata on the current object without changing
+	// the object body, ETag, or VersionID. When versioning is enabled this MUST
+	// NOT create a new version.
+	//
+	// PutObjectMetadata must return ErrNoSuchBucket if the bucket does not exist,
+	// and ErrNoSuchKey if the object does not exist (or the current version is a
+	// delete marker).
+	PutObjectMetadata(bucketName, objectName string, meta map[string]string) error
+
 	DeleteMulti(bucketName string, objects ...string) (MultiDeleteResult, error)
 
 	CopyObject(srcBucket, srcKey, dstBucket, dstKey string, meta map[string]string) (CopyObjectResult, error)
@@ -383,6 +392,12 @@ type VersionedBackend interface {
 	// The Backend MUST treat a nil prefix identically to a zero prefix, and a
 	// nil page identically to a zero page.
 	ListBucketVersions(bucketName string, prefix *Prefix, page *ListBucketVersionsPage) (*ListBucketVersionsResult, error)
+
+	// PutObjectVersionMetadata replaces metadata on a specific object version
+	// without changing the body, ETag, or VersionID, and without creating a new
+	// version. See PutObjectMetadata for error semantics; also return
+	// ErrNoSuchVersion if the version does not exist.
+	PutObjectVersionMetadata(bucketName, objectName string, versionID VersionID, meta map[string]string) error
 }
 
 // MultipartBackend may be optionally implemented by a Backend in order to

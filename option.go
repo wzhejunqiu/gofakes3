@@ -106,3 +106,31 @@ func WithAutoBucket(enabled bool) Option {
 func WithInsecureCORS() Option {
 	return func(g *GoFakeS3) { g.wrapCORS = wrapInsecureCORS }
 }
+
+// WithRestoreDelay configures how long a GLACIER/DEEP_ARCHIVE RestoreObject
+// request stays in the restoring (ongoing-request="true") state before the
+// temporary copy becomes readable (Standard tier). Defaults to
+// DefaultRestoreDelay (1s). Tests typically combine this with WithTimeSource /
+// TimeSourceAdvancer to advance time without waiting.
+//
+// GlacierJobParameters.Tier scales this delay: Expedited=0, Standard=1x, Bulk=2x.
+func WithRestoreDelay(d time.Duration) Option {
+	return func(g *GoFakeS3) { g.restoreDelay = d }
+}
+
+// WithRestoreMaxDays sets the maximum allowed Days value on RestoreObject.
+// Defaults to RestoreDaysMax (365). Values less than 1 fall back to RestoreDaysMax.
+func WithRestoreMaxDays(n int) Option {
+	return func(g *GoFakeS3) {
+		if n < RestoreDaysMin {
+			n = RestoreDaysMax
+		}
+		g.restoreMaxDays = n
+	}
+}
+
+// WithRestoreRenewal selects how RestoreObject extends an already-available
+// temporary copy. Defaults to RestoreRenewalExtend (add Days to current expiry).
+func WithRestoreRenewal(mode RestoreRenewalMode) Option {
+	return func(g *GoFakeS3) { g.restoreRenewal = mode }
+}

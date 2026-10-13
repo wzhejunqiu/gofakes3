@@ -212,7 +212,7 @@ func (u *uploader) ListParts(bucket, object string, uploadID UploadID, marker in
 		UploadID:         uploadID,
 		MaxParts:         limit,
 		PartNumberMarker: marker,
-		StorageClass:     "STANDARD", // FIXME
+		StorageClass:     StorageClassFromMetadata(mpu.Meta),
 	}
 
 	var cnt int64
@@ -310,7 +310,7 @@ func (u *uploader) ListMultipartUploads(bucket string, marker *UploadListMarker,
 			} else {
 				for idx, upload := range uploads {
 					result.Uploads = append(result.Uploads, ListMultipartUploadItem{
-						StorageClass: "STANDARD", // FIXME
+						StorageClass: StorageClassFromMetadata(upload.Meta),
 						Key:          object,
 						UploadID:     upload.ID,
 						Initiated:    ContentTime{Time: upload.Initiated},

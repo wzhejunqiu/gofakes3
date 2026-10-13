@@ -51,6 +51,9 @@ func (g *GoFakeS3) routeBase(w http.ResponseWriter, r *http.Request) {
 	} else if _, ok := query["versions"]; ok {
 		err = g.routeVersions(bucket, w, r)
 
+	} else if _, ok := query["restore"]; ok {
+		err = g.routeRestore(bucket, object, w, r)
+
 	} else if versionID := versionFromQuery(query["versionId"]); versionID != "" {
 		err = g.routeVersion(bucket, object, VersionID(versionID), w, r)
 
@@ -90,6 +93,21 @@ func (g *GoFakeS3) routeObject(bucket, object string, w http.ResponseWriter, r *
 		return g.createObject(bucket, object, w, r)
 	case "DELETE":
 		return g.deleteObject(bucket, object, w, r)
+	default:
+		return ErrMethodNotAllowed
+	}
+}
+
+// routeRestore handles POST /{bucket}/{key}?restore (RestoreObject).
+// Optional versionId query is supported when the backend implements VersionedBackend.
+func (g *GoFakeS3) routeRestore(bucket, object string, w http.ResponseWriter, r *http.Request) error {
+	if bucket == "" || object == "" {
+		return ErrInvalidURI
+	}
+	versionID := VersionID(versionFromQuery(r.URL.Query()["versionId"]))
+	switch r.Method {
+	case "POST":
+		return g.restoreObject(bucket, object, versionID, w, r)
 	default:
 		return ErrMethodNotAllowed
 	}

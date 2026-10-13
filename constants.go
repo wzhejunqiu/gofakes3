@@ -28,6 +28,16 @@ const (
 
 	DefaultSkewLimit = 15 * time.Minute
 
+	// DefaultRestoreDelay is how long a GLACIER/DEEP_ARCHIVE RestoreObject
+	// request stays in ongoing-request="true" before the temporary copy becomes
+	// readable (Standard tier).
+	DefaultRestoreDelay = 1 * time.Second
+
+	// RestoreDaysMin / RestoreDaysMax bound the Days field of RestoreRequest.
+	// RestoreDaysMax matches AWS S3 (1..365); override with WithRestoreMaxDays.
+	RestoreDaysMin = 1
+	RestoreDaysMax = 365
+
 	MaxUploadsLimit       = 1000
 	DefaultMaxUploads     = 1000
 	MaxUploadPartsLimit   = 1000

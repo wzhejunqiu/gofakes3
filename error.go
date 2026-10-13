@@ -47,7 +47,13 @@ const (
 	// The Content-MD5 you specified is not valid.
 	ErrInvalidDigest ErrorCode = "InvalidDigest"
 
+	// The operation is not valid for the current state of the object (e.g.
+	// GetObject on an unrestored GLACIER object, or RestoreObject on a
+	// non-GLACIER object).
+	ErrInvalidObjectState ErrorCode = "InvalidObjectState"
+
 	ErrInvalidRange         ErrorCode = "InvalidRange"
+	ErrInvalidStorageClass  ErrorCode = "InvalidStorageClass"
 	ErrInvalidToken         ErrorCode = "InvalidToken"
 	ErrKeyTooLong           ErrorCode = "KeyTooLongError" // This is not a typo: Error is part of the string, but redundant in the constant name
 	ErrMalformedPOSTRequest ErrorCode = "MalformedPOSTRequest"
@@ -93,6 +99,9 @@ const (
 
 	// A conflicting conditional operation is currently in progress against this resource
 	ErrConditionalRequestConflict ErrorCode = "ConditionalRequestConflict"
+
+	// Object restore is already in progress.
+	ErrRestoreAlreadyInProgress ErrorCode = "RestoreAlreadyInProgress"
 
 	ErrRequestTimeTooSkewed ErrorCode = "RequestTimeTooSkewed"
 	ErrTooManyBuckets       ErrorCode = "TooManyBuckets"
@@ -236,6 +245,12 @@ func (e ErrorCode) Message() string {
 		return "At least one of the preconditions you specified did not hold"
 	case ErrConditionalRequestConflict:
 		return "A conflicting conditional operation is currently in progress against this resource"
+	case ErrInvalidObjectState:
+		return "The operation is not valid for the object's storage class"
+	case ErrInvalidStorageClass:
+		return "The storage class you specified is not valid"
+	case ErrRestoreAlreadyInProgress:
+		return "Object restore is already in progress"
 	default:
 		return ""
 	}
@@ -247,7 +262,8 @@ func (e ErrorCode) Status() int {
 		ErrBucketNotEmpty:
 		return http.StatusConflict
 
-	case ErrConditionalRequestConflict:
+	case ErrConditionalRequestConflict,
+		ErrRestoreAlreadyInProgress:
 		return http.StatusConflict
 
 	case ErrPreconditionFailed:
@@ -263,6 +279,7 @@ func (e ErrorCode) Status() int {
 		ErrInvalidDigest,
 		ErrInvalidPart,
 		ErrInvalidPartOrder,
+		ErrInvalidStorageClass,
 		ErrInvalidToken,
 		ErrInvalidURI,
 		ErrKeyTooLong,
@@ -273,7 +290,8 @@ func (e ErrorCode) Status() int {
 		ErrTooManyBuckets:
 		return http.StatusBadRequest
 
-	case ErrRequestTimeTooSkewed:
+	case ErrRequestTimeTooSkewed,
+		ErrInvalidObjectState:
 		return http.StatusForbidden
 
 	case ErrInvalidRange:

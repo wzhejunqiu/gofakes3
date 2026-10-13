@@ -167,6 +167,7 @@ func (db *MultiBucketBackend) getBucketWithFilePrefixLocked(bucket string, prefi
 				LastModified: gofakes3.NewContentTime(mtime),
 				ETag:         gofakes3.FormatETag(meta.Hash),
 				Size:         size,
+				StorageClass: gofakes3.StorageClassFromMetadata(meta.Meta),
 			})
 		}
 	}
@@ -214,6 +215,7 @@ func (db *MultiBucketBackend) getBucketWithArbitraryPrefixLocked(bucket string, 
 			LastModified: gofakes3.NewContentTime(mtime),
 			ETag:         gofakes3.FormatETag(meta.Hash),
 			Size:         size,
+			StorageClass: gofakes3.StorageClassFromMetadata(meta.Meta),
 		})
 
 		return nil
@@ -504,6 +506,35 @@ func (db *MultiBucketBackend) PutObject(
 	}
 
 	return result, nil
+}
+
+func (db *MultiBucketBackend) PutObjectMetadata(bucketName, objectName string, meta map[string]string) error {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	exists, err := afero.Exists(db.bucketFs, bucketName)
+	if err != nil {
+		return err
+	} else if !exists {
+		return gofakes3.BucketNotFound(bucketName)
+	}
+
+	fullPath := path.Join(bucketName, objectName)
+	stat, err := db.bucketFs.Stat(filepath.FromSlash(fullPath))
+	if os.IsNotExist(err) {
+		return gofakes3.KeyNotFound(objectName)
+	} else if err != nil {
+		return err
+	} else if stat.IsDir() {
+		return gofakes3.KeyNotFound(objectName)
+	}
+
+	storedMeta, err := db.metaStore.loadMeta(bucketName, objectName, stat.Size(), stat.ModTime())
+	if err != nil {
+		return err
+	}
+	storedMeta.Meta = meta
+	return db.metaStore.saveMeta(db.metaStore.metaPath(bucketName, objectName), storedMeta)
 }
 
 func (db *MultiBucketBackend) CopyObject(srcBucket, srcKey, dstBucket, dstKey string, meta map[string]string) (result gofakes3.CopyObjectResult, err error) {

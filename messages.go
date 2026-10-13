@@ -482,8 +482,44 @@ func (s StorageClass) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 }
 
 const (
-	StorageStandard StorageClass = "STANDARD"
+	StorageStandard            StorageClass = "STANDARD"
+	StorageStandardIA          StorageClass = "STANDARD_IA"
+	StorageReducedRedundancy   StorageClass = "REDUCED_REDUNDANCY"
+	StorageOneZoneIA           StorageClass = "ONEZONE_IA"
+	StorageIntelligentTiering  StorageClass = "INTELLIGENT_TIERING"
+	StorageGlacier             StorageClass = "GLACIER"
+	StorageDeepArchive         StorageClass = "DEEP_ARCHIVE"
+	StorageGlacierIR           StorageClass = "GLACIER_IR"
 )
+
+// RestoreRenewalMode selects how RestoreObject extends an already-available
+// temporary copy's expiry.
+type RestoreRenewalMode int
+
+const (
+	// RestoreRenewalExtend adds Days to the current expiry (default).
+	RestoreRenewalExtend RestoreRenewalMode = iota
+	// RestoreRenewalFromNow sets expiry to now + Days (may shorten the window).
+	RestoreRenewalFromNow
+)
+
+const (
+	RestoreTierExpedited = "Expedited"
+	RestoreTierStandard  = "Standard"
+	RestoreTierBulk      = "Bulk"
+)
+
+// RestoreRequest is the XML body for RestoreObject.
+// See https://docs.aws.amazon.com/AmazonS3/latest/API/API_RestoreObject.html
+type RestoreRequest struct {
+	XMLName              xml.Name              `xml:"RestoreRequest"`
+	Days                 int                   `xml:"Days"`
+	GlacierJobParameters *GlacierJobParameters `xml:"GlacierJobParameters,omitempty"`
+}
+
+type GlacierJobParameters struct {
+	Tier string `xml:"Tier"`
+}
 
 // UploadID uses a string as the underlying type, but the string should only
 // represent a decimal integer. See uploader.uploadID for details.

@@ -188,6 +188,7 @@ func (db *Backend) ListBucket(name string, prefix *gofakes3.Prefix, page gofakes
 					ETag:         gofakes3.FormatETag(b.Hash),
 					Size:         b.Size,
 					LastModified: gofakes3.NewContentTime(b.LastModified.UTC()),
+					StorageClass: gofakes3.StorageClassFromMetadata(b.Metadata),
 				}
 				objects.Add(item)
 				lastKey = key
@@ -434,6 +435,31 @@ func (db *Backend) PutObject(
 			return err
 		}
 		return nil
+	})
+}
+
+func (db *Backend) PutObjectMetadata(bucketName, objectName string, meta map[string]string) error {
+	return db.bolt.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(bucketName))
+		if b == nil {
+			return gofakes3.BucketNotFound(bucketName)
+		}
+
+		v := b.Get([]byte(objectName))
+		if v == nil {
+			return gofakes3.KeyNotFound(objectName)
+		}
+
+		var t boltObject
+		if err := bson.Unmarshal(v, &t); err != nil {
+			return fmt.Errorf("gofakes3: could not unmarshal object at %q/%q: %v", bucketName, objectName, err)
+		}
+		t.Metadata = meta
+		data, err := bson.Marshal(&t)
+		if err != nil {
+			return err
+		}
+		return b.Put([]byte(objectName), data)
 	})
 }
 

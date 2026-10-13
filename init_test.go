@@ -32,8 +32,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cevatbarisyilmaz/ara"
 	"github.com/aws/smithy-go"
+	"github.com/cevatbarisyilmaz/ara"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -292,7 +292,7 @@ func (ts *testServer) s3Client() *s3.Client {
 	}
 	hostname := u.Hostname()
 
-	// In SDK v2, we need to use the actual hostname from the URL 
+	// In SDK v2, we need to use the actual hostname from the URL
 	// instead of hardcoded "127.0.0.1"
 	resolverMap := map[string][]string{
 		fmt.Sprintf("%s.%s", defaultBucket, hostname): {hostname},
