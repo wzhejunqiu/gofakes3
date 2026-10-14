@@ -40,7 +40,7 @@ docker pull johannesboyne/gofakes3
 **Go install**
 
 ```bash
-go get github.com/johannesboyne/gofakes3
+go get github.com/wzhejunqiu/gofakes3
 ```
 
 ### Example with AWS SDK v2 (Recommended)
@@ -59,8 +59,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/johannesboyne/gofakes3"
-	"github.com/johannesboyne/gofakes3/backend/s3mem"
+	"github.com/wzhejunqiu/gofakes3"
+	"github.com/wzhejunqiu/gofakes3/backend/s3mem"
 )
 
 // Set up gofakes3 server
@@ -308,7 +308,7 @@ _, err = s3Client.PutObject(&s3.PutObjectInput{
 
 ## Contributors
 
-A big thank you to all the [contributors](https://github.com/johannesboyne/gofakes3/graphs/contributors),
+A big thank you to all the [contributors](https://github.com/wzhejunqiu/gofakes3/graphs/contributors),
 especially [Blake @shabbyrobe](https://github.com/shabbyrobe) who pushed this
 little project to the next level!
 

@@ -1,4 +1,4 @@
-module github.com/johannesboyne/gofakes3
+module github.com/wzhejunqiu/gofakes3
 
 go 1.24
 

@@ -7,7 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/johannesboyne/gofakes3"
+	"github.com/wzhejunqiu/gofakes3"
 )
 
 const autoBucket = "autobucket"

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/johannesboyne/gofakes3"
+	"github.com/wzhejunqiu/gofakes3"
 	"github.com/spf13/afero"
 )
 

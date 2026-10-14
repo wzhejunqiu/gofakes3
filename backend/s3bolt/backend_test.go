@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/johannesboyne/gofakes3"
+	"github.com/wzhejunqiu/gofakes3"
 )
 
 // setupTestBackend creates a temporary file and backend for testing.

@@ -4,7 +4,7 @@ import (
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"testing"
 
-	"github.com/johannesboyne/gofakes3"
+	"github.com/wzhejunqiu/gofakes3"
 )
 
 func TestMultipartUpload(t *testing.T) {

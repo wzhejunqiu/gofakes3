@@ -5,8 +5,8 @@ import (
 	"io"
 	"sync"
 
-	"github.com/johannesboyne/gofakes3"
-	"github.com/johannesboyne/gofakes3/internal/goskipiter"
+	"github.com/wzhejunqiu/gofakes3"
+	"github.com/wzhejunqiu/gofakes3/internal/goskipiter"
 )
 
 var (

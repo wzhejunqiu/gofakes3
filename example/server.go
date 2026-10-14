@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/johannesboyne/gofakes3"
-	"github.com/johannesboyne/gofakes3/backend/s3mem"
+	"github.com/wzhejunqiu/gofakes3"
+	"github.com/wzhejunqiu/gofakes3/backend/s3mem"
 )
 
 func server() {

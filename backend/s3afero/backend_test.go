@@ -12,7 +12,7 @@ import (
 
 	"github.com/spf13/afero"
 
-	"github.com/johannesboyne/gofakes3"
+	"github.com/wzhejunqiu/gofakes3"
 )
 
 func testingBackends(t *testing.T) []gofakes3.Backend {

@@ -13,8 +13,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/johannesboyne/gofakes3"
-	"github.com/johannesboyne/gofakes3/backend/s3mem"
+	"github.com/wzhejunqiu/gofakes3"
+	"github.com/wzhejunqiu/gofakes3/backend/s3mem"
 )
 
 func main() {
